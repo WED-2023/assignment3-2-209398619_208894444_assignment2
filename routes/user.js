@@ -2,7 +2,7 @@
 const express       = require("express");
 const router        = express.Router();
 const user_utils    = require("./utils/user_utils");
-const recipes_utils = require("./utils/recipes_utils");
+const { get_last_three_views } = require("./utils/recipes_utils");
 const family_utils = require("./utils/family_utils");
 
 /*-------------------------------------------------------------------------------------------*/
@@ -31,19 +31,22 @@ router.post("/favorites", async (req, res, next) => {
   try {
     const user_id   = req.user_id;
     const recipe_id = parseInt(req.body.recipeId, 10);
-    if (!recipe_id) return res.status(400).json({ error: "Missing recipeId" });
+    if (!recipe_id) {
+      return res.status(400).json({ message: "Missing recipeId", success: false });
+    }
 
-    // Delegate to user_utils (uses INSERT IGNORE)
     await user_utils.addFavoriteRecipe(user_id, recipe_id);
-    res.status(201).json({ message: "Recipe added to favorites" });
+    return res.status(201).json({ message: "Recipe added to favorites", success: true });
   }
   catch (err) {
+    if (err.status === 409) {
+      return res.status(409).json({ message: err.message, success: false });
+    }
     next(err);
   }
 });
 
 /*-------------------------------------------------------------------------------------------*/
-
 
 /**
  * GET /users/favorites
@@ -52,17 +55,14 @@ router.post("/favorites", async (req, res, next) => {
 router.get("/favorites", async (req, res, next) => {
   try {
     const user_id  = req.user_id;
-    // Delegate to user_utils (returns full preview objects)
     const favorites = await user_utils.getFavoriteRecipes(user_id);
     res.json({ favorites });
   }
-  catch (err) {
-    next(err);
-  }
+  catch (err) { next(err); }
 });
 
-/*-------------------------------------------------------------------------------------------*/
 
+/*-------------------------------------------------------------------------------------------*/
 
 /**
  * GET /users/recipes
@@ -81,6 +81,20 @@ router.get("/recipes", async (req, res, next) => {
 
 /*-------------------------------------------------------------------------------------------*/
 
+/**
+ * GET /users/family-recipes
+ * Returns the user's family recipes - we don't intend on keeping too much so fetching all of them is fine
+ */
+router.get("/family-recipes", async (req, res, next) => {
+  try {
+    const user_id = req.user_id;
+    const familyRecipes = await family_utils.getFamilyRecipes(user_id);
+    res.json({ familyRecipes });
+  }
+  catch (err) { next(err); }
+});
+
+/*-------------------------------------------------------------------------------------------*/
 
 /**
  * GET /users/viewed-recipes
@@ -89,8 +103,7 @@ router.get("/recipes", async (req, res, next) => {
 router.get("/viewed-recipes", async (req, res, next) => {
   try {
     const user_id = req.user_id;
-    // We assume user_utils.getLastViews returns RecipePreview[]
-    const viewedRecipes = await user_utils.getLastViews(user_id);
+    const viewedRecipes = await get_last_three_views(user_id);
     res.json({ viewedRecipes });
   }
   catch (err) {
@@ -101,42 +114,15 @@ router.get("/viewed-recipes", async (req, res, next) => {
 /*-------------------------------------------------------------------------------------------*/
 
 /**
- * GET /users/family-recipes
- * Returns: { familyRecipes: [ FamilyRecipe, … ] }
+ * GET /users/last-search
+ * Returns the last search parameters for the logged-in user
  */
-router.get("/family-recipes", async (req, res, next) => {
+router.get("/last-search", async (req, res, next) => {
   try {
-    const user_id       = req.user_id;
-    const familyRecipes = await family_utils.getFamilyRecipes(user_id);
-    res.json({ familyRecipes });
-  }
-  catch (err) { next(err); }
-});
-
-/*-------------------------------------------------------------------------------------------*/
-
-/**
- * POST /users/family-recipes
- * Body JSON (all required except image):
- *   { title, owner, occasion, image, ingredients, instructions }
- */
-router.post("/family-recipes", async (req, res, next) => {
-  try {
-    const user_id = req.user_id;
-    const recipe  = req.body;
-
-    // basic validation
-    for (const field of ["title","owner","occasion","ingredients","instructions"]) {
-      if (!recipe[field]) {
-        return res.status(400).json({ error:`Missing field "${field}"` });
-      }
-    }
-    if (!Array.isArray(recipe.ingredients)) {
-      return res.status(400).json({ error:"`ingredients` must be an array" });
-    }
-
-    const newId = await family_utils.addFamilyRecipe(user_id, recipe);
-    res.status(201).json({ recipe_id:newId, message:"Family recipe added successfully" });
+    const uid = req.session.user_id;
+    if (!uid) return res.sendStatus(401);
+    const last = await require("./utils/user_utils").getLastSearch(uid);
+    res.json({ lastSearch: last || {} });
   }
   catch (err) { next(err); }
 });

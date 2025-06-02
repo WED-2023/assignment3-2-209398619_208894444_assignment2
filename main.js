@@ -50,7 +50,7 @@ app.get("/",function(req,res)
 // app.use(cors(corsConfig));
 // app.options("*", cors(corsConfig));
 
-var port = process.env.PORT || "3000"; //local=3000 remote=3000
+var port = process.env.PORT || "3000"; //local=3000 remote=80
 //#endregion
 const user = require("./routes/user");
 const recipes = require("./routes/recipes");
@@ -80,7 +80,7 @@ app.get("/alive", (req, res) => res.send("I'm alive"));
 // Routings
 app.use("/users", user);
 app.use("/recipes", recipes);
-app.use("/", auth);
+app.use("/auth", auth);
 
 
 

@@ -27,33 +27,4 @@ async function getFamilyRecipes(user_id) {
 
 /*-------------------------------------------------------------------------------------------*/
 
-/**
- * Insert a new family recipe and return its new ID.
- * Expects `recipe` to have: title, owner, occasion, image, ingredients (array), instructions.
- */
-async function addFamilyRecipe(user_id, recipe) {
-  const ingredientsJson = JSON.stringify(recipe.ingredients);
-  await DButils.execQuery(
-    `INSERT INTO family_recipes
-       (user_id, title, owner, occasion, image, ingredients, instructions)
-     VALUES
-       ('${user_id}',
-        '${recipe.title}',
-        '${recipe.owner}',
-        '${recipe.occasion}',
-        '${recipe.image}',
-        '${ingredientsJson}',
-        '${recipe.instructions}'
-       )`
-  );
-  // grab the auto-incremented id
-  const result = await DButils.execQuery(`SELECT LAST_INSERT_ID() AS recipe_id`);
-  return result[0].recipe_id;
-}
-
-/*-------------------------------------------------------------------------------------------*/
-
-module.exports = {
-  getFamilyRecipes,
-  addFamilyRecipe,
-};
+module.exports = {getFamilyRecipes,};

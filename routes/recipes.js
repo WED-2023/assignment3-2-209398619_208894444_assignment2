@@ -4,8 +4,10 @@ const {
   getRandomRecipes,
   searchRecipes,
   getRecipeDetails,
-  getRecipeInstructions,
+  createPersonalRecipe
 } = require("./utils/recipes_utils");
+const user_utils = require("./utils/user_utils");
+
 
 /*-------------------------------------------------------------------------------------------*/
 
@@ -34,7 +36,18 @@ router.get("/search", async (req, res, next) => {
       return res.status(400).json({ error: "Missing `query` parameter" });
     }
 
+    // 1.do the Spoonacular search
     const results = await searchRecipes({ query, cuisine, diet, intolerances, number, sort });
+
+    // 2.record it in last_search if the user is logged in
+    if (req.session && req.session.user_id) {
+      await require("./utils/user_utils").upsertLastSearch(
+        req.session.user_id,
+        { query, number, cuisine, diet, intolerances }
+      );
+    }
+
+    // 3.return bigger payload
     res.json({
       results,
       totalResults: results.length,
@@ -50,7 +63,15 @@ router.get("/search", async (req, res, next) => {
 // GET /recipes/:id
 router.get("/:id(\\d+)", async (req, res, next) => {
   try {
+    // 1) fetch the full details from Spoonacular
     const recipe = await getRecipeDetails(req.params.id);
+
+    // 2) if the user is logged in, record the view & mark viewed
+    if (req.session && req.session.user_id) { 
+      await user_utils.recordView(req.session.user_id, req.params.id);
+      recipe.viewed = true;  
+    }
+
     res.json(recipe);
   }
   catch (err) { next(err); }
@@ -61,9 +82,24 @@ router.get("/:id(\\d+)", async (req, res, next) => {
 // POST /recipes
 router.post("/", async (req, res, next) => {
   try {
-    const user_id = req.session.user_id;              // from your auth middleware
-    const newId   = await recipes_utils.createPersonalRecipe(req.body, user_id);
-    res.status(201).json({ id: newId, message: "Recipe created successfully" });
+    // 1) grab the logged-in user’s ID
+    const user_id = req.session.user_id;
+    if (!user_id) {
+      return res.status(401).json({ message: "Please log in", success: false });
+    }
+
+    // 2) delegate to helper
+    //    req.body should be:
+    //    { title, image, readyInMinutes, vegan, vegetarian, glutenFree,
+    //      servings, instructions, ingredients: [ {name,amount,unit}, … ] }
+    const newRecipeId = await createPersonalRecipe(req.body, user_id);
+
+    // 3) respond with the new ID
+    res.status(201).json({
+      recipe_id: newRecipeId,
+      message:   "Recipe created successfully",
+      success:   true
+    });
   }
   catch (err) {
     next(err);
