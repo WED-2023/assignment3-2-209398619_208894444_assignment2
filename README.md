@@ -24,7 +24,7 @@ Welcome to the backend API for the “Grandma’s Recipes” project. This servi
   - Search recipes by keyword  
   - Get detailed information for a single recipe (including view count tracking)
 - **Favorites Management**  
-  - Add/remove recipes to user’s favorites  
+  - Add recipes to user’s favorites  
   - List user’s favorite recipes
 - **Personal/Family Recipes**  
   - Fetch personal recipes for the logged-in user  
