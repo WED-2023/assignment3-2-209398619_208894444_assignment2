@@ -100,8 +100,7 @@ router.post("/logout", async (req, res, next) => {
     console.log("session user_id Logout:", uid);
 
     // 1) delete their last_search
-    await require("./utils/user_utils")
-      .execQuery(`DELETE FROM last_search WHERE user_id = ${uid}`);
+    await DButils.execQuery(`DELETE FROM last_search WHERE user_id = ${uid}`);
 
     // 2) clear the session
     req.session.reset();

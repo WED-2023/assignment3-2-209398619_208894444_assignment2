@@ -7,6 +7,19 @@ const DButils = require("./DButils");
 /*-------------------------------------------------------------------------------------------*/
 
 /**
+ * A small helper that escapes single-quotes in a string by doubling them.
+ * (e.g.  Hello 'world'  =>  Hello ''world''  )
+ */
+function sqlEscapeString(str) {
+  // If it's not a string, just return it unchanged:
+  if (typeof str !== "string") return str;
+  // Replace every single quote with two single quotes:
+  return str.replace(/'/g, "''");
+}
+
+/*-------------------------------------------------------------------------------------------*/
+
+/**
  * Map a Spoonacular recipe object to our RecipePreview schema.
  */
 function mapToPreview(r) {
@@ -144,15 +157,15 @@ async function createPersonalRecipe(recipe, user_id) {
        vegan, vegetarian, gluten_free, servings, instructions)
     VALUES (
       ${user_id},
-      '${escape(recipe.title)}',
-      ${recipe.image ? `'${escape(recipe.image)}'` : "NULL"},
+      '${sqlEscapeString(recipe.title)}',
+      ${recipe.image ? `'${sqlEscapeString(recipe.image)}'` : "NULL"},
       ${recipe.readyInMinutes},
       0,
       ${recipe.vegan ? 1 : 0},
       ${recipe.vegetarian ? 1 : 0},
       ${recipe.glutenFree ? 1 : 0},
       ${recipe.servings},
-      '${escape(recipe.instructions)}'
+      '${sqlEscapeString(recipe.instructions)}'
     );
   `;
   const result = await DButils.execQuery(insertRecipeSql);
@@ -165,79 +178,15 @@ async function createPersonalRecipe(recipe, user_id) {
         (recipe_id, name, amount, unit)
       VALUES (
         ${newRecipeId},
-        '${escape(ing.name)}',
+        '${sqlEscapeString(ing.name)}',
         ${ing.amount},
-        '${escape(ing.unit)}'
+        '${sqlEscapeString(ing.unit)}'
       );
     `;
     await DButils.execQuery(insertIngSql);
   }
 
   return newRecipeId;
-}
-
-/*-------------------------------------------------------------------------------------------*/
-
-/**
- * Scale a user’s personal recipe to a new servings count.
- * Updates both the recipes.servings field and each recipe_ingredients.amount.
- *
- * @param {number} recipeId
- * @param {number} newServings
- * @param {number} userId
- * @returns {Array} updated ingredients [{ id, name, amount, unit }, …]
- */
-async function updateServings(recipeId, newServings, userId) {
-  // 1) Fetch current servings
-  const rows = await DButils.execQuery(
-    `SELECT servings
-       FROM recipes
-      WHERE recipe_id = ? AND user_id = ?`,
-    [recipeId, userId]
-  );
-  if (rows.length === 0) {
-    const err = new Error("Recipe not found or not yours");
-    err.status = 404;
-    throw err;
-  }
-  const oldServings = rows[0].servings;
-
-  // 2) Fetch all ingredients for that recipe
-  const ingredients = await DButils.execQuery(
-    `SELECT id, name, amount, unit
-       FROM recipe_ingredients
-      WHERE recipe_id = ?`,
-    [recipeId]
-  );
-
-  // 3) Compute the scale factor and new amounts
-  const factor = newServings / oldServings;
-  const updated = ingredients.map(ing => ({
-    id:     ing.id,
-    name:   ing.name,
-    amount: Math.round(ing.amount * factor * 100) / 100,
-    unit:   ing.unit,
-  }));
-
-  // 4) Persist the new servings count
-  await DButils.execQuery(
-    `UPDATE recipes
-        SET servings = ?
-      WHERE recipe_id = ? AND user_id = ?`,
-    [newServings, recipeId, userId]
-  );
-
-  // 5) Persist each ingredient’s new amount
-  await Promise.all(updated.map(ing =>
-    DButils.execQuery(
-      `UPDATE recipe_ingredients
-          SET amount = ?
-        WHERE id = ?`,
-      [ing.amount, ing.id]
-    )
-  ));
-
-  return updated;
 }
 
 /*-------------------------------------------------------------------------------------------*/
@@ -278,9 +227,7 @@ async function get_last_three_views(user_id) {
 
 /*-------------------------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------------------------*/
 
@@ -289,7 +236,6 @@ module.exports = {
   searchRecipes,
   getRecipeDetails,
   createPersonalRecipe,
-  updateServings,
   get_last_three_views,
   getRecipePreview
 };
