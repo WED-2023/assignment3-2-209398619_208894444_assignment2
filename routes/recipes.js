@@ -4,7 +4,8 @@ const {
   getRandomRecipes,
   searchRecipes,
   getRecipeDetails,
-  createPersonalRecipe
+  createPersonalRecipe,
+  getPersonalRecipeDetails,
 } = require("./utils/recipes_utils");
 const user_utils = require("./utils/user_utils");
 
@@ -49,7 +50,7 @@ router.get("/search", async (req, res, next) => {
 
     // 3.return bigger payload
     res.json({
-      results,
+      recipes: results,
       totalResults: results.length,
       lastSearch:   query
     });
@@ -60,16 +61,31 @@ router.get("/search", async (req, res, next) => {
 /*-------------------------------------------------------------------------------------------*/
 
 // 3) Full details by ID
-// GET /recipes/:id
-router.get("/:id(\\d+)", async (req, res, next) => {
+// GET /recipes/:id - Can be numeric (external) or non-numeric (internal)
+router.get("/:id", async (req, res, next) => {
   try {
-    // 1) fetch the full details from Spoonacular
-    const recipe = await getRecipeDetails(req.params.id);
+    const recipeId = req.params.id;
+    let recipe;
 
-    // 2) if the user is logged in, record the view & mark viewed
+    // First, try to fetch from the local/personal database.
+    // This assumes personal recipes might have non-numeric IDs, but will work even if they are numeric.
+    const personalRecipe = await getPersonalRecipeDetails(recipeId);
+
+    if (personalRecipe) {
+      // If found, this is our recipe.
+      recipe = personalRecipe;
+    } else {
+      // If not found locally, and if the ID is purely numeric, try Spoonacular.
+      if (!/^\d+$/.test(recipeId)) {
+        return res.status(404).send({ message: "Recipe not found." });
+      }
+      recipe = await getRecipeDetails(recipeId);
+    }
+    
+    // Mark as viewed for logged-in users
     if (req.session && req.session.user_id) { 
-      await user_utils.recordView(req.session.user_id, req.params.id);
-      recipe.viewed = true;  
+      await user_utils.recordView(req.session.user_id, recipeId);
+      recipe.viewed = true;
     }
 
     res.json(recipe);
@@ -82,7 +98,7 @@ router.get("/:id(\\d+)", async (req, res, next) => {
 // POST /recipes
 router.post("/", async (req, res, next) => {
   try {
-    // 1) grab the logged-in user’s ID
+    // 1) grab the logged-in user's ID
     const user_id = req.session.user_id;
     if (!user_id) {
       return res.status(401).json({ message: "Please log in", success: false });

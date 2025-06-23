@@ -40,7 +40,7 @@ function mapToPreview(r) {
 /*-------------------------------------------------------------------------------------------*/
 
 /**
- * Fetch a single recipe’s preview and tag viewed/favorite flags - this is for the favorites page to set the favorite field as true
+ * Fetch a single recipe's preview and tag viewed/favorite flags - this is for the favorites page to set the favorite field as true
  * @param {number} recipeId 
  * @param {boolean} viewed 
  * @param {boolean} favorite 
@@ -146,47 +146,35 @@ async function getRecipeDetails(id) {
 /**
  * Inserts a new personal recipe and its ingredients.
  * @param {Object} recipe       The recipe payload from the client
- * @param {number} user_id      The logged-in user’s ID
+ * @param {number} user_id      The logged-in user's ID
  * @returns {number}            The new recipe_id
  */
 async function createPersonalRecipe(recipe, user_id) {
-  // build the INSERT for the recipes table
+  // The frontend sends ingredients and instructions as simple arrays of strings.
+  // We will store them as JSON strings in the database.
+  const ingredientsJSON = JSON.stringify(recipe.ingredients || []);
+  const instructionsString = recipe.instructions.join(';'); // Store as a single semicolon-delimited string
+
   const insertRecipeSql = `
     INSERT INTO recipes
       (user_id, title, image, ready_in_minutes, popularity,
-       vegan, vegetarian, gluten_free, servings, instructions)
+       vegan, vegetarian, gluten_free, servings, instructions, ingredients)
     VALUES (
       ${user_id},
       '${sqlEscapeString(recipe.title)}',
       ${recipe.image ? `'${sqlEscapeString(recipe.image)}'` : "NULL"},
-      ${recipe.readyInMinutes},
+      ${recipe.readyInMinutes || 0},
       0,
       ${recipe.vegan ? 1 : 0},
       ${recipe.vegetarian ? 1 : 0},
       ${recipe.glutenFree ? 1 : 0},
-      ${recipe.servings},
-      '${sqlEscapeString(recipe.instructions)}'
+      ${recipe.servings || 0},
+      '${sqlEscapeString(instructionsString)}',
+      '${sqlEscapeString(ingredientsJSON)}'
     );
   `;
   const result = await DButils.execQuery(insertRecipeSql);
-  const newRecipeId = result.insertId;
-
-  // now insert each ingredient
-  for (const ing of recipe.ingredients) {
-    const insertIngSql = `
-      INSERT INTO recipe_ingredients
-        (recipe_id, name, amount, unit)
-      VALUES (
-        ${newRecipeId},
-        '${sqlEscapeString(ing.name)}',
-        ${ing.amount},
-        '${sqlEscapeString(ing.unit)}'
-      );
-    `;
-    await DButils.execQuery(insertIngSql);
-  }
-
-  return newRecipeId;
+  return result.insertId;
 }
 
 /*-------------------------------------------------------------------------------------------*/
@@ -227,7 +215,39 @@ async function get_last_three_views(user_id) {
 
 /*-------------------------------------------------------------------------------------------*/
 
+/**
+ * Fetch a recipe's details from the database and parse ingredients and instructions from string to array
+ * @param {number} recipe_id 
+ * @returns {Promise<Recipe>}
+ */
+async function getPersonalRecipeDetails(recipe_id) {
+  const recipeQuery = await DButils.execQuery(`SELECT * FROM recipes WHERE recipe_id = '${recipe_id}'`);
+  if (recipeQuery.length === 0) {
+    return null; // Return null if not found
+  }
 
+  const result = recipeQuery[0];
+
+  // Make parsing robust to handle non-JSON string data
+  try {
+    result.ingredients = JSON.parse(result.ingredients);
+  } catch (e) {
+    // If it's not valid JSON, treat it as a plain string and wrap it for consistency.
+    result.ingredients = (typeof result.ingredients === 'string') 
+      ? result.ingredients.split(';').map(i => i.trim()).filter(i => i)
+      : [];
+  }
+
+  try {
+    result.instructions = JSON.parse(result.instructions);
+  } catch (e) {
+    result.instructions = (typeof result.instructions === 'string')
+      ? result.instructions.split(';').map(i => i.trim()).filter(i => i)
+      : [];
+  }
+
+  return result;
+}
 
 /*-------------------------------------------------------------------------------------------*/
 
@@ -237,5 +257,6 @@ module.exports = {
   getRecipeDetails,
   createPersonalRecipe,
   get_last_three_views,
-  getRecipePreview
+  getRecipePreview,
+  getPersonalRecipeDetails
 };

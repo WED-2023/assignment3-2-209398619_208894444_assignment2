@@ -30,6 +30,7 @@ require("dotenv").config();
         gluten_free BOOLEAN DEFAULT FALSE,
         servings INT DEFAULT 1,
         instructions TEXT,
+        ingredients TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
       );

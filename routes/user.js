@@ -24,7 +24,7 @@ router.use((req, res, next) => {
 
 /**
  * POST /users/favorites
- * Add a recipe to the logged‐in user’s favorites.
+ * Add a recipe to the logged‐in user's favorites.
  * Body: { recipeId: <number> }
  */
 router.post("/favorites", async (req, res, next) => {
@@ -56,7 +56,7 @@ router.get("/favorites", async (req, res, next) => {
   try {
     const user_id  = req.user_id;
     const favorites = await user_utils.getFavoriteRecipes(user_id);
-    res.json({ favorites });
+    res.json({ recipes: favorites });
   }
   catch (err) { next(err); }
 });
@@ -89,7 +89,7 @@ router.get("/family-recipes", async (req, res, next) => {
   try {
     const user_id = req.user_id;
     const familyRecipes = await family_utils.getFamilyRecipes(user_id);
-    res.json({ familyRecipes });
+    res.json({ recipes: familyRecipes });
   }
   catch (err) { next(err); }
 });
@@ -104,7 +104,7 @@ router.get("/viewed-recipes", async (req, res, next) => {
   try {
     const user_id = req.user_id;
     const viewedRecipes = await get_last_three_views(user_id);
-    res.json({ viewedRecipes });
+    res.json({ recipes: viewedRecipes });
   }
   catch (err) {
     next(err);

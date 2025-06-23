@@ -5,7 +5,7 @@ var path = require("path");
 var logger = require("morgan");
 const session = require("client-sessions");
 const DButils = require("./routes/utils/DButils");
-var cors = require('cors')
+const cors = require("cors");
 
 var app = express();
 app.use(logger("dev")); //logger
@@ -39,16 +39,12 @@ app.get("/",function(req,res)
 
 });
 
-// app.use(cors());
-// app.options("*", cors());
-
-// const corsConfig = {
-//   origin: true,
-//   credentials: true
-// };
-
-// app.use(cors(corsConfig));
-// app.options("*", cors(corsConfig));
+// CORS configuration
+const corsOptions = {
+  origin: ["http://localhost:8080", "http://127.0.0.1:8080"],
+  credentials: true,
+};
+app.use(cors(corsOptions));
 
 var port = process.env.PORT || "3000"; //local=3000 remote=80
 //#endregion
