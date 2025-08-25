@@ -17,7 +17,8 @@ const user_utils = require("./utils/user_utils");
 router.get("/random", async (req, res, next) => {
   try {
     const count = parseInt(req.query.number, 10) || 3;
-    const recipes = await getRandomRecipes(count);
+    const user_id = req.session?.user_id || null; // Get user_id if logged in
+    const recipes = await getRandomRecipes(count, user_id);
     res.json({ recipes });
   }
   catch (err) { next(err); }
@@ -38,7 +39,8 @@ router.get("/search", async (req, res, next) => {
     }
 
     // 1.do the Spoonacular search
-    const results = await searchRecipes({ query, cuisine, diet, intolerances, number, sort });
+    const user_id = req.session?.user_id || null; // Get user_id if logged in
+    const results = await searchRecipes({ query, cuisine, diet, intolerances, number, sort, user_id });
 
     // 2.record it in last_search if the user is logged in
     if (req.session && req.session.user_id) {

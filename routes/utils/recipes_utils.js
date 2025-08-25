@@ -37,6 +37,47 @@ function mapToPreview(r) {
   };
 }
 
+/**
+ * Enhanced version that checks user's view/favorite status
+ */
+async function mapToPreviewWithUserStatus(r, user_id = null) {
+  let viewed = false;
+  let favorite = false;
+
+  if (user_id) {
+    try {
+      // Check if user has viewed this recipe
+      const viewResults = await DButils.execQuery(
+        `SELECT 1 FROM views WHERE user_id = ${user_id} AND recipe_id = ${r.id}`
+      );
+      viewed = viewResults.length > 0;
+
+      // Check if user has favorited this recipe
+      const favoriteResults = await DButils.execQuery(
+        `SELECT 1 FROM favorites WHERE user_id = ${user_id} AND recipe_id = ${r.id}`
+      );
+      favorite = favoriteResults.length > 0;
+    } catch (error) {
+      console.log('Error checking user status:', error);
+    }
+  }
+
+  return {
+    id:             r.id,
+    title:          r.title,
+    readyInMinutes: r.readyInMinutes,
+    image:          r.image,
+    popularity:     r.aggregateLikes,
+    vegan:          r.vegan,
+    vegetarian:     r.vegetarian,
+    glutenFree:     r.glutenFree,
+    viewed,
+    favorite,
+    isViewed:       viewed,  // Alternative naming
+    isFavorite:     favorite, // Alternative naming
+  };
+}
+
 /*-------------------------------------------------------------------------------------------*/
 
 /**
@@ -68,11 +109,20 @@ async function getRecipePreview(recipeId, viewed = false, favorite = false) {
 /**
  * GET /recipes/random
  */
-async function getRandomRecipes(number = 3) {
+async function getRandomRecipes(number = 3, user_id = null) {
   const { data } = await axios.get(`${api}/random`, {
     params: { number, apiKey: KEY }
   });
-  return data.recipes.map(mapToPreview);
+  
+  if (user_id) {
+    // Use Promise.all to check user status for all recipes concurrently
+    const recipesWithStatus = await Promise.all(
+      data.recipes.map(r => mapToPreviewWithUserStatus(r, user_id))
+    );
+    return recipesWithStatus;
+  } else {
+    return data.recipes.map(mapToPreview);
+  }
 }
 
 /*-------------------------------------------------------------------------------------------*/
@@ -80,7 +130,7 @@ async function getRandomRecipes(number = 3) {
 /**
  * GET /recipes/search
  */
-async function searchRecipes({ query, cuisine, diet, intolerances, number = 5, sort = "popularity" }) {
+async function searchRecipes({ query, cuisine, diet, intolerances, number = 5, sort = "popularity", user_id = null }) {
   const { data } = await axios.get(`${api}/complexSearch`, {
     params: {
       query,
@@ -93,19 +143,32 @@ async function searchRecipes({ query, cuisine, diet, intolerances, number = 5, s
       apiKey: KEY,
     }
   });
-  return data.results.map(r => ({
-    id:             r.id,
-    title:          r.title,
-    readyInMinutes: r.readyInMinutes,
-    image:          r.image,
-    popularity:     r.aggregateLikes,
-    vegan:          r.vegan,
-    vegetarian:     r.vegetarian,
-    glutenFree:     r.glutenFree,
-    viewed:         false,
-    favorite:       false,
-    instructions:   r.instructions || ""
-  }));
+
+  if (user_id) {
+    // Use Promise.all to check user status for all recipes concurrently
+    const recipesWithStatus = await Promise.all(
+      data.results.map(r => mapToPreviewWithUserStatus(r, user_id))
+    );
+    // Add instructions field
+    return recipesWithStatus.map(r => ({
+      ...r,
+      instructions: data.results.find(orig => orig.id === r.id)?.instructions || ""
+    }));
+  } else {
+    return data.results.map(r => ({
+      id:             r.id,
+      title:          r.title,
+      readyInMinutes: r.readyInMinutes,
+      image:          r.image,
+      popularity:     r.aggregateLikes,
+      vegan:          r.vegan,
+      vegetarian:     r.vegetarian,
+      glutenFree:     r.glutenFree,
+      viewed:         false,
+      favorite:       false,
+      instructions:   r.instructions || ""
+    }));
+  }
 }
 
 

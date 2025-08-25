@@ -19,24 +19,32 @@ app.use(
     activeDuration: 1000 * 60 * 5, // if expiresIn < activeDuration,
     cookie: {
       httpOnly: false,
+      sameSite: "lax", // Added for cross-origin session support
     }
     //the session will be extended by activeDuration milliseconds
   })
 );
 app.use(express.urlencoded({ extended: false })); // parse application/x-www-form-urlencoded
 app.use(express.static(path.join(__dirname, "public"))); //To serve static files such as images, CSS files, and JavaScript files
-//local:
-app.use(express.static(path.join(__dirname, "dist")));
-//remote:
-// app.use(express.static(path.join(__dirname, '../assignment-3-3-frontend/dist')));
+//local Vue app:
+app.use(express.static(path.join(__dirname, "../assignment3-3-updated-209398619_208894444_assignment2/dist")));
+//swagger docs available at /api-docs if needed:
+app.use("/api-docs", express.static(path.join(__dirname, "dist")));
 
 app.get("/",function(req,res)
 { 
-  //remote: 
-  // res.sendFile(path.join(__dirname, '../assignment-3-3-frontend/dist/index.html'));
-  //local:
-  res.sendFile(__dirname+"/index.html");
+  //serve Vue app index.html:
+  res.sendFile(path.join(__dirname, '../assignment3-3-updated-209398619_208894444_assignment2/dist/index.html'));
+});
 
+// Fallback for client-side routing - serve Vue app for any non-API routes
+app.get('*', function(req, res, next) {
+  // Skip API routes
+  if (req.path.startsWith('/api') || req.path.startsWith('/users') || req.path.startsWith('/recipes') || req.path.startsWith('/auth') || req.path.startsWith('/alive')) {
+    return next();
+  }
+  // Serve Vue app for all other routes
+  res.sendFile(path.join(__dirname, '../assignment3-3-updated-209398619_208894444_assignment2/dist/index.html'));
 });
 
 // CORS configuration
