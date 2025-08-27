@@ -16,40 +16,26 @@ const router = express.Router();
  */
 router.post("/register", async (req, res, next) => {
   try {
-     let user_details = {
-    username:  req.body.username,
-    firstname: req.body.firstname,
-    lastname:  req.body.lastname,
-    country:   req.body.country,
-    password:  req.body.password,
-    email:     req.body.email,
-    profilePic:req.body.profilePic
-  };
-
-  // 1) check for existing username
-  let users = await DButils.execQuery("SELECT username from users");
-  if (users.find(x => x.username === user_details.username))
-    throw { status: 409, message: "Username taken" };
-
-    // 2) hash password
-     let hash = bcrypt.hashSync(user_details.password,parseInt(process.env.bcrypt_saltRounds));
-
-    // 3) insert into DB
+    const { username, firstName, lastName, country, password, email } = req.body;
+    
+    // Check for existing username
+    const users = await DButils.execQuery("SELECT username FROM users WHERE username = ?", [username]);
+    if (users.length > 0) {
+      throw { status: 409, message: "Username taken" };
+    }
+    
+    // Hash password
+    const hash = bcrypt.hashSync(password, parseInt(process.env.bcrypt_saltRounds));
+    
+    // Insert into DB with parameterized query
     await DButils.execQuery(
-    `INSERT INTO users (username, firstname, lastname, country, hash, email, profilePic)
-     VALUES ('${user_details.username}',
-             '${user_details.firstname}',
-             '${user_details.lastname}',
-             '${user_details.country}',
-             '${hash}',
-             '${user_details.email}',
-             '${user_details.profilePic}')`
-  );
-
-    // 4) respond
+      `INSERT INTO users (username, firstname, lastname, country, hash, email) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [username, firstName, lastName, country, hash, email]
+    );
+    
     res.status(201).json({ message: "User created", success: true });
-  }
-  catch (err) {
+  } catch (err) {
     next(err);
   }
 });
